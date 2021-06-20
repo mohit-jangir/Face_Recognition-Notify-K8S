@@ -1,0 +1,24 @@
+- hosts: tag_Name_K8S_Master_Node
+  roles:
+  - name: "Configuring K8S_Master"
+    role: k8s_master
+    pod_network_cidr: 10.240.0.0/16
+
+- hosts: tag_Name_K8S_Slave_Node*
+  roles:
+  - name: "Configuring K8S_Master"
+    role: k8s_worker
+
+- hosts: localhost
+  tasks:
+  - name: "Pausing playbook for 60 seconds to make Nodes in Ready State"
+    pause:
+      seconds: 60
+
+- hosts: tag_Name_K8S_Master_Node
+  tasks:
+  - name: "Getting Status of all Nodes in K8S Cluster"
+    shell: "kubectl get nodes -o wide"
+    register: pods
+  - debug:
+     var: "pods.stdout_lines"
