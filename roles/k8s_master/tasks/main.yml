@@ -1,0 +1,136 @@
+---
+# tasks file for K8s-master
+- debug:
+        msg: "Configuring the master node.."
+
+- name: "Installing docker"
+  package:
+            name: "docker"
+            state: present
+
+- name: "Starting and enabling docker service permanently"
+  service:
+            name: "docker"
+            state: started
+            enabled: yes
+
+- name: "Configuring repository for K8s"
+  yum_repository:
+            name: "K8s-repo"
+            description: "Repository for K8s"
+            baseurl: "https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64"
+            gpgcheck: yes
+            repo_gpgcheck: yes
+            gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+            enabled: yes
+
+- name: "Installing kubeadm, kubectl and kubelet"
+  package:
+       name: "{{ packages }}"
+       state: present
+       update_cache: yes
+  vars:
+       packages:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+- name: "Pulling docker images"
+  command: "kubeadm config images pull"
+
+- name: "Changing the driver to systemd"
+  copy:
+            dest: "/etc/docker/daemon.json"
+            content: '{
+                      "exec-opts": ["native.cgroupdriver=systemd"]
+                      }'
+
+- name: "Restarting docker service"
+  service:
+            name: "docker"
+            state: restarted
+
+- name: "Installing iproute-tc software"
+  package:
+            name: "iproute-tc"
+            state: present
+
+- name: appending systcl file
+  shell: "cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf \n net.bridge.bridge-nf-call-ip6tables = 1 \n net.bridge.bridge-nf-call-iptables = 1"
+
+#- name: Edit /etc/sysctl.conf file
+#  lineinfile:
+#    dest: /etc/sysctl.conf
+#    line: "net.bridge.bridge-nf-call-iptables = 1"
+
+- name: "Starting sysctl service"
+  command: "sudo sysctl --system"
+
+- name: start kubelet
+  service:
+       name: kubelet
+       daemon_reload: yes
+       state: started
+       enabled: yes
+
+- name: "Initializing kubeadm and ignoring RAM and CPU errors"
+  shell: sudo kubeadm init --pod-network-cidr="{{ pod_network_cidr }}"  --control-plane-endpoint "{{ hostvars[groups['tag_Name_K8S_Master_Node'][0]].ec2_private_ip_address }}:6443" --ignore-preflight-errors=NumCPU --ignore-preflight-errors=Mem
+  ignore_errors: yes
+
+- name: "Making .kube directory"
+  command: "sudo mkdir -p $HOME/.kube"
+
+- name: "Copying admin.conf file to .kube directory"
+  command: "sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
+
+- name: "Changing owner .kube directory"
+  shell: "sudo chown $(id -u):$(id -g) $HOME/.kube/config"
+
+#- name: "Configuring flannel networks"
+#  command: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
+
+- name: Copy kube-flannel.yml to master node
+  get_url:
+    url: https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+    dest: $HOME/kube-flannel.yml
+
+- name: Set network in the $HOME/kube-flannel.yml file
+  lineinfile:
+    path: $HOME/kube-flannel.yml
+    regexp: '\"Network\":*'
+    line: "      \"Network\": \"{{ pod_network_cidr }}\","
+ 
+- name: Install CNI (Flannel)
+  command: kubectl apply -f $HOME/kube-flannel.yml
+  
+- name: "Changing permissions"
+  shell: "export KUBECONFIG=/etc/kubernetes/admin.conf"
+
+#- name: "Removing older apiserver certificates"
+#  shell: "sudo rm /etc/kubernetes/pki/apiserver.*"
+
+#- name: "Adding Master public ip to kube-apiserver so client can connect by public ip"
+#  shell: "sudo kubeadm init phase certs all --apiserver-advertise-address=0.0.0.0
+#           --apiserver-cert-extra-sans={{ hostvars['localhost'].ec2.results[0].instances[0].public_ip }}"
+
+#- name: "Removing kube-apiserver containers having older certificates"
+#  shell: "sudo docker rm -f `docker ps -q -f 'name=k8s_kube-apiserver*'`"
+
+#- name: "Restarting kubelet"
+#  service: 
+#     name: kubelet
+#     state: restarted
+
+- name: "Printing the join command for worker nodes"
+  shell: "kubeadm token create --print-join-command"
+  register: token
+
+- name: print token
+  debug:
+      var: token
+
+- name: Copy join command to local file
+  local_action: copy content="{{ token.stdout_lines[0] }}" dest="/tmp/join-command"
+
+- debug:
+        msg: "Your system is configured as a master node ..."

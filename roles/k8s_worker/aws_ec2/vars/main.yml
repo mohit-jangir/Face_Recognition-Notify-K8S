@@ -1,0 +1,9 @@
+---
+# vars file for aws-ec2
+key: "slave1"
+instanceType: "t2.small"
+image_id: "ami-0bcf5425cdc1d8a85"
+region_name: "ap-south-1"
+security_group_id: "sg-0dc77dcdc092aa48c"
+subnet_id: "subnet-a77970cf"
+wn_count: 2

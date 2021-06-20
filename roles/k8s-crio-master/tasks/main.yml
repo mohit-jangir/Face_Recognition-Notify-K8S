@@ -1,0 +1,122 @@
+- name: "Copying CRIO Script to K8S Master Node"
+  copy:
+     src: "crio.sh"
+     dest: "/root/"
+
+- name: "running CRIO script"
+  shell: "bash /root/crio.sh"
+
+- name: "Updating apt"
+  shell: "apt update"
+
+- name: "Installing CRIO"
+  shell: "apt install -qq -y cri-o cri-o-runc cri-tools"
+
+- name: "Reloading System/Daemon"
+  shell: "systemctl daemon-reload"
+
+- name: "starting & enabling CRIO"
+  service:
+      name: crio
+      state: started
+      enabled: yes
+
+- name: "Installing Kubeadm,kubelet & kubectl"
+  shell: |
+   curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+   apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+   apt install -qq -y kubeadm=1.20.5-00 kubelet=1.20.5-00 kubectl=1.20.5-00
+
+- name: "Adding Overlay Network"
+  shell: |
+   cat >>/etc/modules-load.d/crio.conf<<EOF
+   overlay
+   br_netfilter
+   EOF
+
+- name: "Creating Overlay and Netfilter"
+  shell: |
+    modprobe overlay
+    modprobe br_netfilter
+
+- name: "Changing Iptables values to 1"
+  shell: |
+   cat >>/etc/sysctl.d/kubernetes.conf<<EOF
+   net.bridge.bridge-nf-call-ip6tables = 1
+   net.bridge.bridge-nf-call-iptables  = 1
+   net.ipv4.ip_forward                 = 1
+   EOF
+
+- name: "Running sysctl --system"
+  shell: "sysctl --system"
+
+- name: "Changing group drivers"
+  shell: |
+   cat >>/etc/crio/crio.conf.d/02-cgroup-manager.conf<<EOF
+   [crio.runtime]
+   conmon_cgroup = "pod"
+   cgroup_manager = "cgroupfs"
+   EOF
+
+- name: "Pulling Images using KubeAdm"
+  shell: "kubeadm config  images pull"
+
+- name: "Reloading System/Daemon"
+  shell: "systemctl daemon-reload"
+
+- name: "Restarting CRIO"
+  service:
+       name: crio
+       state: restarted
+
+- name: "Changing Fstab and disabling ufw and swap"
+  shell: |
+     sed -i '/swap/d' /etc/fstab
+     swapoff -a
+     systemctl disable --now ufw
+
+- name: "restarting kubelet"
+  service:
+       name: kubelet
+       state: restarted
+
+- name: "Initializing Master"
+  shell: "sudo kubeadm init --apiserver-advertise-address={{ hostvars[groups['tag_Name_K8S_Master_Node'][0]].ec2_private_ip_address }}  --pod-network-cidr={{ pod_network_cidr }}     --ignore-preflight-errors=NumCPU --ignore-preflight-errors=Mem"
+
+- name: "Creating .kube directory"
+  shell: "mkdir -p $HOME/.kube"
+
+- name: "Copying /etc/kubernetes/admin.conf $HOME/.kube/config"
+  shell: "sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
+
+- name: "changing owner permission"
+  shell: "sudo chown $(id -u):$(id -g) $HOME/.kube/config"
+
+#- name: "Using Calico as Overlay Network"
+#  shell: "kubectl --kubeconfig=/etc/kubernetes/admin.conf create -f https://docs.projectcalico.org/v3.18/manifests/calico.yaml"
+
+- name: Downloading calico.yaml to master node
+  get_url:
+    url: https://docs.projectcalico.org/v3.18/manifests/calico.yaml
+    dest: $HOME/calico.yaml
+
+- name: Set network in the $HOME/calico.yaml file
+  replace:
+      path: $HOME/calico.yaml
+      regexp: "{{item.from}}"
+      replace: "{{item.to}}"
+  with_items:
+       - {from: "# - name: CALICO_IPV4POOL_CIDR", to: "- name: CALICO_IPV4POOL_CIDR"}
+       - {from: '#   value: "192.168.0.0/16"', to: '  value: "{{ pod_network_cidr }}"'}
+
+- name: Install CNI (Calico)
+  command: kubectl apply -f $HOME/calico.yaml
+
+- name: "Printing the join command for worker nodes"
+  shell: "kubeadm token create --print-join-command"
+  register: token
+- debug:
+      var: token.stdout_lines[0]
+
+- name: Copy join command to local file
+  local_action: copy content="{{ token.stdout_lines[0] }}" dest="./join-command"

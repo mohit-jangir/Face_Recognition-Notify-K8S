@@ -1,0 +1,96 @@
+- name: "Copying CRIO Script to K8S Slave Node"
+  copy:
+     src: "crio.sh"
+     dest: "/root/"
+
+- name: "running CRIO script"
+  shell: "bash /root/crio.sh"
+
+- name: "Updating apt"
+  shell: "apt update"
+
+- name: "Installing CRIO"
+  shell: "apt install -qq -y cri-o cri-o-runc cri-tools"
+
+- name: "Reloading System/Daemon"
+  shell: "systemctl daemon-reload"
+
+- name: "starting & enabling CRIO"
+  service:
+     name: crio
+     state: started
+     enabled: yes
+
+- name: "Installing KubeAdm, kubelet & kubectl"
+  shell: |
+   curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+   apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+   apt install -qq -y kubeadm=1.20.5-00 kubelet=1.20.5-00 kubectl=1.20.5-00
+
+- name: "Adding Overlay Network"
+  shell: |
+   cat >>/etc/modules-load.d/crio.conf<<EOF
+   overlay
+   br_netfilter
+   EOF
+
+- name: "Creating Overlay and Netfilter"
+  shell: |
+     modprobe overlay
+     modprobe br_netfilter
+
+- name: "Changing Iptables values to 1"
+  shell: |
+   cat >>/etc/sysctl.d/kubernetes.conf<<EOF
+   net.bridge.bridge-nf-call-ip6tables = 1
+   net.bridge.bridge-nf-call-iptables  = 1
+   net.ipv4.ip_forward                 = 1
+   EOF
+
+- name: "Running sysctl --system"
+  shell: "sysctl --system"
+
+- name: "Changing group drivers"
+  shell: |
+   cat >>/etc/crio/crio.conf.d/02-cgroup-manager.conf<<EOF
+   [crio.runtime]
+   conmon_cgroup = "pod"
+   cgroup_manager = "cgroupfs"
+   EOF
+
+- name: "Pulling Images using KubeAdm"
+  shell: "kubeadm config  images pull"
+
+- name: "Reloading System/Daemon"
+  shell: "systemctl daemon-reload"
+
+- name: "Restarting CRIO"
+  service:
+      name: crio
+      state: restarted
+
+- name: "Changing Fstab and disable ufw & swap"
+  shell: |
+     sed -i '/swap/d' /etc/fstab
+     swapoff -a
+     systemctl disable --now ufw
+
+- name: "restarting kubelet"
+  service:
+      name: kubelet
+      state: restarted
+
+- name: Copy the join command to slave node location
+  copy: 
+      src: /root/join-command 
+      dest: /tmp/join-command.sh 
+      mode: +x 
+
+- name: "Joining Slaves to Master Node"
+  shell: "sh /tmp/join-command.sh"
+  register: init
+- debug:
+    var: init.stdout_lines
+- debug:
+        msg: "instances are configured as Worker nodes ..."
+

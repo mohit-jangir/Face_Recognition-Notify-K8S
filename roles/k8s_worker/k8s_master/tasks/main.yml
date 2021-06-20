@@ -1,0 +1,83 @@
+---
+# tasks file for K8s-master
+- debug:
+        msg: "Configuring the master node.."
+- name: "Installing docker"
+  package:
+            name: "docker"
+            state: present
+- name: "Starting and enabling docker service permanently"
+  service:
+            name: "docker"
+            state: started
+            enabled: yes
+- name: "Configuring repository for K8s"
+  yum_repository:
+            name: "K8s-repo"
+            description: "Repository for K8s"
+            baseurl: "https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64"
+            gpgcheck: yes
+            repo_gpgcheck: yes
+            description: Kubernetes
+            gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+            enabled: yes
+- name: "Installing kubeadm, kubectl and kubelet"
+  package:
+       name: "{{ packages }}"
+       state: present
+       update_cache: yes
+  vars:
+       packages:
+        - kubelet
+        - kubeadm
+        - kubectl
+- name: "Pulling docker images"
+  command: "kubeadm config images pull"
+- name: "Changing the driver to systemd"
+  copy:
+            dest: "/etc/docker/daemon.json"
+            content: '{
+                      "exec-opts": ["native.cgroupdriver=systemd"]
+                      }'
+- name: "Restarting docker service"
+  service:
+            name: "docker"
+            state: restarted
+- name: "Installing iproute-tc software"
+  package:
+            name: "iproute-tc"
+            state: present
+- name: appending systcl file
+  shell: "cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf \n net.bridge.bridge-nf-call-ip6tables = 1 \n net.bridge.bridge-nf-call-iptables = 1"
+- name: "Starting sysctl service"
+  command: "sudo sysctl --system"
+- name: start kubelet
+  service:
+       name: kubelet
+       daemon_reload: yes
+       state: started
+       enabled: yes
+- name: "Initializing kubeadm and ignoring RAM and CPU errors"
+  command: "sudo kubeadm init --pod-network-cidr=10.240.0.0/16 --ignore-preflight-errors=NumCPU --ignore-preflight-errors=Mem"
+  ignore_errors: yes
+- name: "Making .kube directory"
+  command: "sudo mkdir -p $HOME/.kube"
+- name: "Copying admin.conf file to .kube directory"
+  command: "sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
+- name: "Changing owner .kube directory"
+  shell: "sudo chown $(id -u):$(id -g) $HOME/.kube/config"
+
+- name: "Configuring flannel networks"
+  command: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
+- name: "Changing permissions"
+  shell: "export KUBECONFIG=/etc/kubernetes/admin.conf"
+- debug:
+        msg: "Your system is configured as a master node ..."
+- name: "Printing the join command for worker nodes"
+  shell: "kubeadm token create --print-join-command"
+  register: token
+- name: print token
+  debug:
+      var: token
+- name: Copy join command to local file
+  local_action: copy content="{{ token.stdout_lines[0] }}" dest="./join-command" 
