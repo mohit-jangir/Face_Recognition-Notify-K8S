@@ -1,0 +1,18 @@
+{
+    "Changes": [
+        {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+                "Name": "mohit.m.com",
+                "ResourceRecords": [
+                    {
+                        "Value": "52.66.208.96"
+                    }
+                ],
+                "TTL": 30,
+                "Type": "A"
+            }
+        }
+    ],
+    "Comment": "CREATE/DELETE/UPSERT a record "
+}

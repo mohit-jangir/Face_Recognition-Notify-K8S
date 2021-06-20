@@ -1,0 +1,34 @@
+{
+    "BlockDeviceMappings":[
+        {
+            "DeviceName":"/dev/sda1",
+            "Ebs":{
+                "VolumeType":"gp2",
+                "DeleteOnTermination":true,
+                "SnapshotId":"snap-0aa33e40a60b0122d",
+                "Encrypted":true,
+                "KmsKeyId":"alias/aws/ebs"
+            }
+        }
+    ],
+    "ImageId":"ami-0a9d27a9f4f5c0efc",
+    "InstanceType":"t2.micro",
+    "TagSpecifications":[
+        {
+            "ResourceType":"volume",
+            "Tags":[
+                {
+                    "Key":"encrypted",
+                    "Value":"yes"
+                }
+            ],
+	    "ResourceType":"instance",
+            "Tags":[
+                {
+                    "Key":"Name",
+                    "Value":"RHEL_8"
+                }
+            ]
+        }
+    ]
+}

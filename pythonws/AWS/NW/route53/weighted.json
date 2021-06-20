@@ -1,0 +1,15 @@
+{
+  "Comment": "upsert a record ",
+"Changes": [{
+"Action": "UPSERT",
+"ResourceRecordSet": {
+"Name": "a.mohit.com",
+"Type": "A",
+"TTL": 5,
+"ResourceRecords": [{ "Value": "65.0.132.51"}],
+"Weight": 10,
+"SetIdentifier": "weight"
+}}]
+}
+
+

@@ -1,0 +1,6 @@
+18:23:13.246318 IP 172.31.41.82.43406 > 13.233.160.195.etlservicemgr: Flags [P.], seq 1886158393:1886158713, ack 4161090255, win 671, options [nop,nop,TS val 1139757145 ecr 3738625826], length 320
+18:23:13.247614 IP 13.233.160.195.etlservicemgr > 172.31.41.82.43406: Flags [P.], seq 1:149, ack 320, win 696, options [nop,nop,TS val 3738628827 ecr 1139757145], length 148
+18:23:13.247635 IP 172.31.41.82.43406 > 13.233.160.195.etlservicemgr: Flags [.], ack 149, win 680, options [nop,nop,TS val 1139757146 ecr 3738628827], length 0
+18:23:15.054218 IP 172.31.41.82.36569 > 169.254.169.123.ntp: NTPv4, Client, length 48
+18:23:15.054633 IP 169.254.169.123.ntp > 172.31.41.82.36569: NTPv4, Server, length 48
+

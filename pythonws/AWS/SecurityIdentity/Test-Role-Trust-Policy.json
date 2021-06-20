@@ -1,0 +1,10 @@
+{
+  "Role": {
+      "AssumeRolePolicyDocument": "<URL-encoded-JSON>",
+      "RoleId": "AKIAIOSFODNN7EXAMPLE",
+      "CreateDate": "2013-06-07T20:43:32.821Z",
+      "RoleName": "Test-Role",
+      "Path": "/",
+      "Arn": "arn:aws:iam::123456789012:role/Test-Role"
+  }
+}

@@ -1,0 +1,14 @@
+{
+     "Comment": "Creating Alias resource record sets in Route 53",
+     "Changes": [{
+                "Action": "CREATE",
+                "ResourceRecordSet": {
+                            "Name": "elb.example.com",
+                            "Type": "A",
+                            "AliasTarget":{
+                                    "HostedZoneId": "Z1H1FL5HABSF5",
+                                    "DNSName": "ALB-xxxxxxxx.us-west-2.elb.amazonaws.com",
+                                    "EvaluateTargetHealth": false
+                              }}
+                          }]
+}

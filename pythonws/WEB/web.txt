@@ -1,0 +1,5 @@
+WELCOME TO MY WEBSITE !!!
+
+import os
+ip=subprocess.getoutput("ifconfig eth0")
+print("ip")
